@@ -31,7 +31,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
@@ -43,6 +42,8 @@ dependencies:
   animated_toggle_switch: ^0.6.2
   flutter_native_splash: ^2.3.1
   readmore: ^2.1.0
+  http: ^1.1.0
+  flutter_dotenv: ^5.1.0
   calendar_agenda:
     path: dev_lib/calendar_agenda/
 
@@ -84,6 +85,7 @@ flutter:
   assets:
      - assets/images/
      - assets/icons/
+     - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

@@ -6,8 +6,12 @@ import 'package:fitnessapp/view/profile/complete_profile_screen.dart';
 import 'package:fitnessapp/view/welcome/welcome_screen.dart';
 import 'package:fitnessapp/view/your_goal/your_goal_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
+  print('ENDPOINT loaded: ${dotenv.env['ENDPOINT']}');
   runApp(const MyApp());
 }
 
@@ -22,12 +26,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       routes: routes,
       theme: ThemeData(
-        primaryColor: AppColors.primaryColor1,
-        useMaterial3: true,
-        fontFamily: "Poppins"
-      ),
+          primaryColor: AppColors.primaryColor1,
+          useMaterial3: true,
+          fontFamily: "Poppins"),
       home: const DashboardScreen(),
     );
   }
 }
-

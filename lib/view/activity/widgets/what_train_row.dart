@@ -1,5 +1,5 @@
 import 'package:fitnessapp/utils/app_colors.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 import '../../../common_widgets/round_button.dart';
 
@@ -26,7 +26,8 @@ class WhatTrainRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Expanded(
+              Flexible(
+                flex: 2,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -36,16 +37,20 @@ class WhatTrainRow extends StatelessWidget {
                           color: AppColors.blackColor,
                           fontSize: 14,
                           fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     const SizedBox(
                       height: 4,
                     ),
                     Text(
-                      "${wObj["exercises"].toString()} | ${ wObj["time"].toString() }" ,
+                      "${wObj["exercises"]?.toString() ?? ''} | ${wObj["time"]?.toString() ?? ''}",
                       style: TextStyle(
                         color: AppColors.grayColor,
                         fontSize: 12,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     const SizedBox(
                       height: 15,
@@ -53,9 +58,7 @@ class WhatTrainRow extends StatelessWidget {
                     SizedBox(
                       width: 100,
                       height: 30,
-                      child: RoundButton(
-                          title: "View More",
-                          onPressed: () {}),
+                      child: RoundButton(title: "View More", onPressed: () {}),
                     )
                   ],
                 ),
@@ -63,30 +66,62 @@ class WhatTrainRow extends StatelessWidget {
               const SizedBox(
                 width: 15,
               ),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: AppColors.whiteColor.withOpacity(0.54),
-                      borderRadius: BorderRadius.circular(40),
+              Flexible(
+                flex: 1,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: AppColors.whiteColor.withOpacity(0.54),
+                        borderRadius: BorderRadius.circular(40),
+                      ),
                     ),
-                  ),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: Image.asset(
-                      wObj["image"].toString(),
-                      width: 90,
-                      height: 90,
-                      fit: BoxFit.contain,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: _buildImage(wObj["image"].toString()),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
         ));
+  }
+
+  Widget _buildImage(String imagePath) {
+    if (imagePath.startsWith('http')) {
+      return Image.network(
+        imagePath,
+        width: 90,
+        height: 90,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 90,
+            height: 90,
+            color: AppColors.lightGrayColor,
+            child: Icon(Icons.fitness_center, color: AppColors.grayColor),
+          );
+        },
+      );
+    } else {
+      return Image.asset(
+        imagePath.isNotEmpty ? imagePath : 'assets/images/placeholder.png',
+        width: 90,
+        height: 90,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 90,
+            height: 90,
+            color: AppColors.lightGrayColor,
+            child: Icon(Icons.fitness_center, color: AppColors.grayColor),
+          );
+        },
+      );
+    }
   }
 }
