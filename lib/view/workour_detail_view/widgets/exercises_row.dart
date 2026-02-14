@@ -8,18 +8,65 @@ class ExercisesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool isNetworkImage = eObj["image"]?.toString().startsWith('http') ?? false;
+    
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(5),
-            child: Image.asset(
-              eObj["image"].toString(),
-              width: 60,
-              height: 60,
-              fit: BoxFit.cover,
-            ),
+            child: isNetworkImage
+                ? Image.network(
+                    eObj["image"].toString(),
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 60,
+                        height: 60,
+                        color: AppColors.lightGrayColor,
+                        child: Icon(
+                          Icons.image_not_supported,
+                          color: AppColors.grayColor,
+                        ),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        width: 60,
+                        height: 60,
+                        color: AppColors.lightGrayColor,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : Image.asset(
+                    eObj["image"].toString(),
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 60,
+                        height: 60,
+                        color: AppColors.lightGrayColor,
+                        child: Icon(
+                          Icons.image_not_supported,
+                          color: AppColors.grayColor,
+                        ),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(
             width: 15,
@@ -31,6 +78,8 @@ class ExercisesRow extends StatelessWidget {
                   Text(
                     eObj["title"].toString(),
                     style: TextStyle(color: AppColors.blackColor, fontSize: 14, fontWeight: FontWeight.w500),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     eObj["value"].toString(),

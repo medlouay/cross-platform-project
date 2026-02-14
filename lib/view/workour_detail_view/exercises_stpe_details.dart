@@ -4,6 +4,8 @@ import 'package:fitnessapp/view/workour_detail_view/widgets/step_detail_row.dart
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:readmore/readmore.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../utils/workout_api.dart';
 
 class ExercisesStepDetails extends StatefulWidget {
   final Map eObj;
@@ -14,36 +16,93 @@ class ExercisesStepDetails extends StatefulWidget {
 }
 
 class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
-  List stepArr = [
-    {
-      "no": "01",
-      "title": "Spread Your Arms",
-      "detail":
-      "To make the gestures feel more relaxed, stretch your arms as you start this movement. No bending of hands."
-    },
-    {
-      "no": "02",
-      "title": "Rest at The Toe",
-      "detail":
-      "The basis of this movement is jumping. Now, what needs to be considered is that you have to use the tips of your feet"
-    },
-    {
-      "no": "03",
-      "title": "Adjust Foot Movement",
-      "detail":
-      "Jumping Jack is not just an ordinary jump. But, you also have to pay close attention to leg movements."
-    },
-    {
-      "no": "04",
-      "title": "Clapping Both Hands",
-      "detail":
-      "This cannot be taken lightly. You see, without realizing it, the clapping of your hands helps you to keep your rhythm while doing the Jumping Jack"
-    },
-  ];
+  List stepArr = [];
+  bool isLoading = true;
+  String? errorMsg;
+  Map<String, dynamic> exerciseData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    loadExerciseDetails();
+  }
+
+  Future<void> loadExerciseDetails() async {
+    setState(() {
+      isLoading = true;
+      errorMsg = null;
+    });
+
+    try {
+      // Check if we have an exercise ID to fetch from API
+      if (widget.eObj['id'] != null) {
+        final exercise = await WorkoutApi.fetchExerciseById(
+          widget.eObj['id'].toString()
+        );
+        
+        exerciseData = exercise;
+        
+        // Map steps from API
+        if (exercise['steps'] != null) {
+          stepArr = (exercise['steps'] as List).asMap().entries.map((entry) {
+            var step = entry.value;
+            return {
+              'no': (entry.key + 1).toString().padLeft(2, '0'),
+              'title': step['title'] ?? '',
+              'detail': step['description'] ?? '',
+            };
+          }).toList();
+        }
+      } else {
+        // Use data passed directly (fallback)
+        exerciseData = Map<String, dynamic>.from(widget.eObj);
+        if (widget.eObj['steps'] != null) {
+          stepArr = (widget.eObj['steps'] as List).asMap().entries.map((entry) {
+            var step = entry.value;
+            return {
+              'no': (entry.key + 1).toString().padLeft(2, '0'),
+              'title': step['title'] ?? '',
+              'detail': step['description'] ?? '',
+            };
+          }).toList();
+        }
+      }
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading exercise details: $e');
+      setState(() {
+        errorMsg = e.toString();
+        isLoading = false;
+        // Use passed data as fallback
+        exerciseData = Map<String, dynamic>.from(widget.eObj);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.of(context).size;
+    
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.whiteColor,
+          centerTitle: true,
+          elevation: 0,
+        ),
+        backgroundColor: AppColors.whiteColor,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    bool isNetworkImage = (exerciseData["image"]?.toString().startsWith('http') ?? false);
+    String imageUrl = exerciseData["image"]?.toString() ?? "";
+    String title = exerciseData["title"]?.toString() ?? widget.eObj["title"]?.toString() ?? "";
+    String value = exerciseData["value"]?.toString() ?? widget.eObj["value"]?.toString() ?? "";
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.whiteColor,
@@ -106,11 +165,31 @@ class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
                     decoration: BoxDecoration(
                         gradient: LinearGradient(colors: AppColors.primaryG),
                         borderRadius: BorderRadius.circular(20)),
-                    child: Image.asset(
-                      "assets/images/video_temp.png",
-                      width: media.width,
-                      height: media.width * 0.43,
-                      fit: BoxFit.contain,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: isNetworkImage
+                          ? Image.network(
+                              imageUrl,
+                              width: media.width,
+                              height: media.width * 0.43,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Image.asset(
+                                  "assets/images/video_temp.png",
+                                  width: media.width,
+                                  height: media.width * 0.43,
+                                  fit: BoxFit.contain,
+                                );
+                              },
+                            )
+                          : Image.asset(
+                              imageUrl.isNotEmpty 
+                                  ? imageUrl 
+                                  : "assets/images/video_temp.png",
+                              width: media.width,
+                              height: media.width * 0.43,
+                              fit: BoxFit.contain,
+                            ),
                     ),
                   ),
                   Container(
@@ -134,7 +213,7 @@ class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
                 height: 15,
               ),
               Text(
-                widget.eObj["title"].toString(),
+                title,
                 style: TextStyle(
                     color: AppColors.blackColor,
                     fontSize: 16,
@@ -144,7 +223,7 @@ class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
                 height: 4,
               ),
               Text(
-                "Easy | 390 Calories Burn",
+                "$value | 390 Calories Burn",
                 style: TextStyle(
                   color: AppColors.grayColor,
                   fontSize: 12,
@@ -164,7 +243,8 @@ class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
                 height: 4,
               ),
               ReadMoreText(
-                'A jumping jack, also known as a star jump and called a side-straddle hop in the US military, is a physical jumping exercise performed by jumping to a position with the legs spread wide A jumping jack, also known as a star jump and called a side-straddle hop in the US military, is a physical jumping exercise performed by jumping to a position with the legs spread wide',
+                exerciseData['description']?.toString() ?? 
+                'A jumping jack, also known as a star jump and called a side-straddle hop in the US military, is a physical jumping exercise performed by jumping to a position with the legs spread wide.',
                 trimLines: 4,
                 colorClickableText: AppColors.blackColor,
                 trimMode: TrimMode.Line,
@@ -180,96 +260,43 @@ class _ExercisesStepDetailsState extends State<ExercisesStepDetails> {
               const SizedBox(
                 height: 15,
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "How To Do It",
-                    style: TextStyle(
-                        color: AppColors.blackColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text(
-                      "${stepArr.length} Sets",
-                      style: TextStyle(color: AppColors.grayColor, fontSize: 12),
+              if (stepArr.isNotEmpty) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "How To Do It",
+                      style: TextStyle(
+                          color: AppColors.blackColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700),
                     ),
-                  )
-                ],
-              ),
-              ListView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                itemCount: stepArr.length,
-                itemBuilder: ((context, index) {
-                  var sObj = stepArr[index] as Map? ?? {};
-
-                  return StepDetailRow(
-                    sObj: sObj,
-                    isLast: stepArr.last == sObj,
-                  );
-                }),
-              ),
-              Text(
-                "Custom Repetitions",
-                style: TextStyle(
-                    color: AppColors.blackColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700),
-              ),
-              SizedBox(
-                height: 150,
-                child: CupertinoPicker.builder(
-                  itemExtent: 40,
-                  selectionOverlay: Container(
-                    width: double.maxFinite,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: AppColors.grayColor.withOpacity(0.2), width: 1),
-                        bottom: BorderSide(
-                            color: AppColors.grayColor.withOpacity(0.2), width: 1),
+                    TextButton(
+                      onPressed: () {},
+                      child: Text(
+                        "${stepArr.length} Steps",
+                        style: TextStyle(color: AppColors.grayColor, fontSize: 12),
                       ),
-                    ),
-                  ),
-                  onSelectedItemChanged: (index) {},
-                  childCount: 60,
-                  itemBuilder: (context, index) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          "assets/icons/burn_icon.png",
-                          width: 15,
-                          height: 15,
-                          fit: BoxFit.contain,
-                        ),
-                        Text(
-                          " ${(index + 1) * 15} Calories Burn",
-                          style: TextStyle(color: AppColors.grayColor, fontSize: 10),
-                        ),
-                        Text(
-                          " ${index + 1} ",
-                          style: TextStyle(
-                              color: AppColors.grayColor,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w500),
-                        ),
-                        Text(
-                          " times",
-                          style: TextStyle(color: AppColors.grayColor, fontSize: 16),
-                        )
-                      ],
-                    );
-                  },
+                    )
+                  ],
                 ),
-              ),
-              RoundGradientButton(title: "Save", onPressed: () {}),
-              const SizedBox(
-                height: 15,
-              ),
+                ListView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: stepArr.length,
+                  itemBuilder: ((context, index) {
+                    var sObj = stepArr[index] as Map? ?? {};
+
+                    return StepDetailRow(
+                      sObj: sObj,
+                      isLast: stepArr.last == sObj,
+                    );
+                  }),
+                ),
+                const SizedBox(
+                  height: 15,
+                ),
+              ],
             ],
           ),
         ),

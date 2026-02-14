@@ -24,4 +24,15 @@ class WorkoutApi {
       throw Exception('Failed to load workout');
     }
   }
+
+
+  // 🔹 New method to fetch exercise details with steps
+  static Future<Map<String, dynamic>> fetchExerciseById(String id) async {
+    final response = await http.get(Uri.parse('$baseUrl/workouts/exercise/$id'));
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load exercise details');
+    }
+  }
 }

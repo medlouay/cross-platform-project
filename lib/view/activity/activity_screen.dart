@@ -105,38 +105,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                                 decoration: BoxDecoration(
                                     color: AppColors.grayColor.withOpacity(0.3),
                                     borderRadius: BorderRadius.circular(3)),
-                              ),
-                              SizedBox(height: media.width * 0.05),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 15, horizontal: 15),
-                                decoration: BoxDecoration(
-                                  color:
-                                      AppColors.primaryColor2.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Daily Workout Schedule",
-                                      style: TextStyle(
-                                          color: AppColors.blackColor,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700),
-                                    ),
-                                    SizedBox(
-                                      width: 70,
-                                      height: 25,
-                                      child: RoundButton(
-                                        title: "Check",
-                                        onPressed: () {},
-                                      ),
-                                    )
-                                  ],
-                                ),
-                              ),
+                              ),                             
                               SizedBox(height: media.width * 0.05),
                               Row(
                                 mainAxisAlignment:
