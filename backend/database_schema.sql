@@ -78,3 +78,14 @@ CREATE TABLE workout_schedules (
   INDEX idx_scheduled_date (scheduled_date),
   INDEX idx_user_date (user_id, scheduled_date)
 );
+
+
+CREATE TABLE IF NOT EXISTS progress_photos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  photo VARCHAR(255) NOT NULL,
+  taken_at DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_taken_at (taken_at),
+  INDEX idx_user_taken (user_id, taken_at)
+);

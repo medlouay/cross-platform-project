@@ -1,7 +1,9 @@
 import 'package:fitnessapp/common_widgets/round_button.dart';
-import 'package:fitnessapp/common_widgets/round_gradient_button.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/gallery_api.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' as picker;
+import 'dart:io';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({Key? key}) : super(key: key);
@@ -11,26 +13,136 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen> {
-  List photoArr = [
-    {
-      "time": "2 June",
-      "photo": [
-        "assets/images/pp_1.png",
-        "assets/images/pp_2.png",
-        "assets/images/pp_3.png",
-        "assets/images/pp_4.png",
-      ]
-    },
-    {
-      "time": "5 May",
-      "photo": [
-        "assets/images/pp_5.png",
-        "assets/images/pp_6.png",
-        "assets/images/pp_7.png",
-        "assets/images/pp_8.png",
-      ]
+  List<dynamic> photoArr = [];
+  String nextPhotoText = "Next Photos date unavailable";
+  bool isLoading = true;
+  bool isUploading = false;
+  String? errorText;
+  final picker.ImagePicker _picker = picker.ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGallery();
+  }
+
+  Future<void> _loadGallery() async {
+    setState(() {
+      isLoading = true;
+      errorText = null;
+    });
+
+    try {
+      final data = await GalleryApi.fetchGallery();
+      if (!mounted) return;
+
+      setState(() {
+        photoArr = (data["groups"] as List?) ?? [];
+        nextPhotoText = data["reminder"]?.toString() ?? "Next Photos date unavailable";
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        errorText = e.toString().replaceFirst("Exception: ", "");
+      });
     }
-  ];
+  }
+
+  Future<void> _pickAndUpload(picker.ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 80);
+      if (picked == null) return;
+
+      if (mounted) {
+        setState(() {
+          isUploading = true;
+        });
+      }
+
+      await GalleryApi.uploadPhoto(imageFile: File(picked.path));
+      await _loadGallery();
+      _showMessage("Photo uploaded successfully");
+    } catch (e) {
+      _showMessage(e.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          isUploading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openAddPhotoSheet() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text("Take photo"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUpload(picker.ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text("Choose from gallery"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUpload(picker.ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildPhotoTile(String photoPath) {
+    final isRemote = photoPath.startsWith("http://") || photoPath.startsWith("https://");
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      width: 100,
+      decoration: BoxDecoration(
+        color: AppColors.lightGrayColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: isRemote
+            ? Image.network(
+                photoPath,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  "assets/images/progress_each_photo.png",
+                  fit: BoxFit.cover,
+                ),
+              )
+            : Image.asset(
+                photoPath,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+              ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +227,7 @@ class _CameraScreenState extends State<CameraScreen> {
                                       fontWeight: FontWeight.w500),
                                 ),
                                 Text(
-                                  "Next Photos Fall On July 08",
+                                  nextPhotoText,
                                   style: TextStyle(
                                       color: AppColors.blackColor,
                                       fontSize: 14,
@@ -171,8 +283,8 @@ class _CameraScreenState extends State<CameraScreen> {
                                 width: 110,
                                 height: 35,
                                 child: RoundButton(
-                                    title: "Learn More",
-                                    onPressed: () {}),
+                                    title: isUploading ? "Uploading..." : "Add Photo",
+                                    onPressed: isUploading ? () {} : _openAddPhotoSheet),
                               )
                             ]),
                         Image.asset(
@@ -185,43 +297,6 @@ class _CameraScreenState extends State<CameraScreen> {
                 ),
                 SizedBox(
                   height: media.width * 0.05,
-                ),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding:
-                  const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryColor2.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Compare my Photo",
-                        style: TextStyle(
-                            color: AppColors.blackColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500),
-                      ),
-                      SizedBox(
-                        width: 100,
-                        height: 25,
-                        child: RoundButton(
-                          title: "Compare",
-                          onPressed: () {
-                            // Navigator.push(
-                            //   context,
-                            //   MaterialPageRoute(
-                            //     builder: (context) =>
-                            //     const ComparisonView(),
-                            //   ),
-                            // );
-                          },
-                        ),
-                      )
-                    ],
-                  ),
                 ),
                 Padding(
                   padding:
@@ -246,11 +321,11 @@ class _CameraScreenState extends State<CameraScreen> {
                   ),
                 ),
                 ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: photoArr.length,
-                    itemBuilder: ((context, index) {
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: photoArr.length,
+                  itemBuilder: ((context, index) {
                       var pObj = photoArr[index] as Map? ?? {};
                       var imaArr = pObj["photo"] as List? ?? [];
 
@@ -272,30 +347,37 @@ class _CameraScreenState extends State<CameraScreen> {
                               padding: EdgeInsets.zero,
                               itemCount: imaArr.length,
                               itemBuilder: ((context, indexRow) {
-                                return Container(
-                                  margin:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                                  width: 100,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.lightGrayColor,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.asset(
-                                      imaArr[indexRow] as String? ?? "",
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
+                                return _buildPhotoTile(
+                                  imaArr[indexRow] as String? ?? "",
                                 );
                               }),
                             ),
                           ),
                         ],
                       );
-                    }))
+                    }),
+                ),
+                if (isLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                if (!isLoading && errorText != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Text(
+                      errorText!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
+                if (!isLoading && errorText == null && photoArr.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Text(
+                      "No gallery photos yet",
+                      style: TextStyle(color: AppColors.grayColor, fontSize: 12),
+                    ),
+                  )
               ],
             ),
             SizedBox(
@@ -306,14 +388,9 @@ class _CameraScreenState extends State<CameraScreen> {
       ),
       floatingActionButton: InkWell(
         onTap: () {
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(
-          //     builder: (context) => SleepAddAlarmView(
-          //       date: _selectedDateAppBBar,
-          //     ),
-          //   ),
-          // );
+          if (!isUploading) {
+            _openAddPhotoSheet();
+          }
         },
         child: Container(
           width: 55,
