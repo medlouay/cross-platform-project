@@ -48,6 +48,7 @@ dependencies:
   calendar_agenda:
     path: dev_lib/calendar_agenda/
   intl: 0.17.0
+  shared_preferences: ^2.2.3
   
 flutter_native_splash:
   color: "#ffffff"

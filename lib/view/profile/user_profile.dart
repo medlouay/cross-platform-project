@@ -2,7 +2,12 @@ import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/view/profile/widgets/setting_row.dart';
 import 'package:fitnessapp/view/profile/widgets/title_subtitle_cell.dart';
+import 'package:fitnessapp/view/profile/edit_profile_screen.dart';
+import 'package:fitnessapp/view/profile/personal_data_screen.dart';
+import 'package:fitnessapp/view/login/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:fitnessapp/utils/profile_api.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../common_widgets/round_button.dart';
 
@@ -14,8 +19,17 @@ class UserProfile extends StatefulWidget {
 }
 
 class _UserProfileState extends State<UserProfile> {
-
   bool positive = false;
+
+  // Add state variables for user data
+  String firstName = "";
+  String lastName = "";
+  String email = "";
+  String phoneNumber = "";
+  String height = "";
+  String weight = "";
+  String age = "";
+  bool isLoading = true;
 
   List accountArr = [
     {"image": "assets/icons/p_personal.png", "name": "Personal Data", "tag": "1"},
@@ -37,6 +51,105 @@ class _UserProfileState extends State<UserProfile> {
     {"image": "assets/icons/p_privacy.png", "name": "Privacy Policy", "tag": "6"},
     {"image": "assets/icons/p_setting.png", "name": "Setting", "tag": "7"},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserProfile();
+  }
+
+  Future<void> fetchUserProfile() async {
+    try {
+      print('🔵 Fetching profile...');
+      final data = await ProfileApi.getProfile();
+
+      print('🔵 Raw data received: $data');
+
+      setState(() {
+        firstName = data['first_name'] ?? '';
+        lastName = data['last_name'] ?? '';
+        email = data['email'] ?? '';
+        phoneNumber = data['phone_number'] ?? '';
+        height = data['height']?.toString() ?? '';
+        weight = data['weight']?.toString() ?? '';
+        age = data['age']?.toString() ?? '';
+        isLoading = false;
+      });
+
+      print('🟢 Profile loaded successfully');
+      print('🟢 Name: "$firstName $lastName"');
+      print('🟢 Height: "$height", Weight: "$weight", Age: "$age"');
+    } catch (e) {
+      print('🔴 Error fetching profile: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  // Logout function
+  Future<void> handleLogout() async {
+    // Show confirmation dialog
+    bool? confirmLogout = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.grayColor),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                'Logout',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user confirmed logout
+    if (confirmLogout == true) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+
+        // Clear the auth token
+        await prefs.remove('auth_token');
+
+        // Navigate to login screen and remove all previous routes
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(),
+            ),
+                (route) => false,
+          );
+        }
+      } catch (e) {
+        print('Error during logout: $e');
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to logout. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +187,9 @@ class _UserProfileState extends State<UserProfile> {
           )
         ],
       ),
-      body: SingleChildScrollView(
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
           child: Column(
@@ -99,7 +214,7 @@ class _UserProfileState extends State<UserProfile> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Stefani Wong",
+                          "$firstName $lastName",
                           style: TextStyle(
                             color: AppColors.blackColor,
                             fontSize: 14,
@@ -122,8 +237,21 @@ class _UserProfileState extends State<UserProfile> {
                     child: RoundButton(
                       title: "Edit",
                       type: RoundButtonType.primaryBG,
-                      onPressed: () {
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditProfileScreen(
+                              currentHeight: height,
+                              currentWeight: weight,
+                              currentAge: age,
+                            ),
+                          ),
+                        );
 
+                        if (result != null) {
+                          fetchUserProfile();
+                        }
                       },
                     ),
                   )
@@ -132,11 +260,11 @@ class _UserProfileState extends State<UserProfile> {
               const SizedBox(
                 height: 15,
               ),
-              const Row(
+              Row(
                 children: [
                   Expanded(
                     child: TitleSubtitleCell(
-                      title: "180cm",
+                      title: height.isNotEmpty ? "${height}cm" : "N/A",
                       subtitle: "Height",
                     ),
                   ),
@@ -145,7 +273,7 @@ class _UserProfileState extends State<UserProfile> {
                   ),
                   Expanded(
                     child: TitleSubtitleCell(
-                      title: "65kg",
+                      title: weight.isNotEmpty ? "${weight}kg" : "N/A",
                       subtitle: "Weight",
                     ),
                   ),
@@ -154,7 +282,7 @@ class _UserProfileState extends State<UserProfile> {
                   ),
                   Expanded(
                     child: TitleSubtitleCell(
-                      title: "22yo",
+                      title: age.isNotEmpty ? "${age}yo" : "N/A",
                       subtitle: "Age",
                     ),
                   ),
@@ -195,7 +323,28 @@ class _UserProfileState extends State<UserProfile> {
                         return SettingRow(
                           icon: iObj["image"].toString(),
                           title: iObj["name"].toString(),
-                          onPressed: () {},
+                          onPressed: () async {
+                            // Handle Personal Data click
+                            if (iObj["tag"] == "1") {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PersonalDataScreen(
+                                    currentFirstName: firstName,
+                                    currentLastName: lastName,
+                                    currentEmail: email,
+                                    currentPhoneNumber: phoneNumber,
+                                  ),
+                                ),
+                              );
+
+                              // Refresh profile after update
+                              if (result != null) {
+                                print('Personal data updated, refreshing...');
+                                fetchUserProfile();
+                              }
+                            }
+                          },
                         );
                       },
                     )
@@ -269,7 +418,6 @@ class _UserProfileState extends State<UserProfile> {
                                     Positioned(
                                         left: 10.0,
                                         right: 10.0,
-
                                         height: 30.0,
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
@@ -351,7 +499,48 @@ class _UserProfileState extends State<UserProfile> {
                     )
                   ],
                 ),
-              )
+              ),
+              const SizedBox(
+                height: 25,
+              ),
+              // Logout Button
+              Container(
+                padding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                decoration: BoxDecoration(
+                    color: AppColors.whiteColor,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black12, blurRadius: 2)
+                    ]),
+                child: InkWell(
+                  onTap: handleLogout,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.logout,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 15),
+                        Text(
+                          "Logout",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(
+                height: 25,
+              ),
             ],
           ),
         ),

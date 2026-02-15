@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthApi {
   static String get baseUrl => '${dotenv.env['ENDPOINT']}/auth';
@@ -19,8 +20,21 @@ class AuthApi {
       }),
     );
 
+    print('Login response status: ${response.statusCode}');
+    print('Login response body: ${response.body}');
+
     final body = _decodeBody(response.body);
     if (response.statusCode == 200) {
+      // Save the token to SharedPreferences
+      final token = body['token'];
+      if (token != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
+        print('✅ Token saved successfully: $token');
+      } else {
+        print('⚠️ Warning: No token found in response');
+      }
+
       return body;
     }
 

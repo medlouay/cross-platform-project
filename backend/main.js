@@ -4,6 +4,7 @@ const workoutsRoutes = require("./routes/workouts")
 const schedulesRoutes = require("./routes/schedules")
 const authRoutes = require("./routes/auth")
 const galleryRoutes = require("./routes/gallery")
+const profileRoutes = require("./routes/profile");
 
 // Increase body size limit to 10MB (or adjust as needed)
 app.use(express.json({ limit: "10mb" }))
@@ -16,6 +17,7 @@ app.use("/auth", authRoutes)
 app.use("/workouts", workoutsRoutes)
 app.use("/schedules", schedulesRoutes)
 app.use("/gallery", galleryRoutes)
+app.use("/profile", profileRoutes);
 
 app.listen(3000, () => {
     console.log("Server running on port 3000")
