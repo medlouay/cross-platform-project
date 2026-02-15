@@ -1,9 +1,10 @@
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/auth_api.dart';
+import 'package:fitnessapp/view/dashboard/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../common_widgets/round_gradient_button.dart';
 import '../../common_widgets/round_textfield.dart';
-import '../profile/complete_profile_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   static String routeName = "/SignupScreen";
@@ -16,6 +17,77 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   bool isCheck = false;
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _register() async {
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
+      _showMessage("Tous les champs sont obligatoires");
+      return;
+    }
+
+    if (password.length < 6) {
+      _showMessage("Le mot de passe doit contenir au moins 6 caracteres");
+      return;
+    }
+
+    if (!isCheck) {
+      _showMessage("Veuillez accepter la politique de confidentialite");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AuthApi.register(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        DashboardScreen.routeName,
+        (route) => false,
+      );
+    } catch (e) {
+      _showMessage(e.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +125,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   height: 15,
                 ),
                 RoundTextField(
+                  textEditingController: _firstNameController,
                   hintText: "First Name",
                   icon: "assets/icons/profile_icon.png",
                   textInputType: TextInputType.name,
@@ -61,6 +134,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   height: 15,
                 ),
                 RoundTextField(
+                    textEditingController: _lastNameController,
                     hintText: "Last Name",
                     icon: "assets/icons/profile_icon.png",
                     textInputType: TextInputType.name),
@@ -68,6 +142,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   height: 15,
                 ),
                 RoundTextField(
+                    textEditingController: _emailController,
                     hintText: "Email",
                     icon: "assets/icons/message_icon.png",
                     textInputType: TextInputType.emailAddress),
@@ -75,6 +150,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   height: 15,
                 ),
                 RoundTextField(
+                  textEditingController: _passwordController,
                   hintText: "Password",
                   icon: "assets/icons/lock_icon.png",
                   textInputType: TextInputType.text,
@@ -125,76 +201,11 @@ class _SignupScreenState extends State<SignupScreen> {
                   height: 40,
                 ),
                 RoundGradientButton(
-                  title: "Register",
-                  onPressed: () {
-                    Navigator.pushNamed(context, CompleteProfileScreen.routeName);
-                  },
+                  title: _isLoading ? "Inscription..." : "Register",
+                  onPressed: _isLoading ? () {} : _register,
                 ),
                 SizedBox(
                   height: 10,
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                        child: Container(
-                      width: double.maxFinite,
-                      height: 1,
-                      color: AppColors.grayColor.withOpacity(0.5),
-                    )),
-                    Text("  Or  ",
-                        style: TextStyle(
-                            color: AppColors.grayColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400)),
-                    Expanded(
-                        child: Container(
-                      width: double.maxFinite,
-                      height: 1,
-                      color: AppColors.grayColor.withOpacity(0.5),
-                    )),
-                  ],
-                ),
-                SizedBox(
-                  height: 20,
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-
-                      },
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.primaryColor1.withOpacity(0.5), width: 1, ),
-                        ),
-                        child: Image.asset("assets/icons/google_icon.png",width: 20,height: 20,),
-                      ),
-                    ),
-                    SizedBox(width: 30,),
-                    GestureDetector(
-                      onTap: () {
-
-                      },
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.primaryColor1.withOpacity(0.5), width: 1, ),
-                        ),
-                        child: Image.asset("assets/icons/facebook_icon.png",width: 20,height: 20,),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(
-                  height: 20,
                 ),
                 TextButton(
                     onPressed: () {

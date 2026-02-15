@@ -1,14 +1,71 @@
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/auth_api.dart';
+import 'package:fitnessapp/view/dashboard/dashboard_screen.dart';
 import 'package:fitnessapp/view/signup/signup_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../common_widgets/round_gradient_button.dart';
 import '../../common_widgets/round_textfield.dart';
-import '../profile/complete_profile_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   static String routeName = "/LoginScreen";
   const LoginScreen({Key? key}) : super(key: key);
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage("Email et mot de passe sont obligatoires");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AuthApi.login(email: email, password: password);
+      if (!mounted) return;
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        DashboardScreen.routeName,
+        (route) => false,
+      );
+    } catch (e) {
+      _showMessage(e.toString().replaceFirst("Exception: ", ""));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,12 +109,14 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               SizedBox(height: media.width*0.05),
-              const RoundTextField(
+              RoundTextField(
+                  textEditingController: _emailController,
                   hintText: "Email",
                   icon: "assets/icons/message_icon.png",
                   textInputType: TextInputType.emailAddress),
               SizedBox(height: media.width*0.05),
               RoundTextField(
+                textEditingController: _passwordController,
                 hintText: "Password",
                 icon: "assets/icons/lock_icon.png",
                 textInputType: TextInputType.text,
@@ -84,71 +143,8 @@ class LoginScreen extends StatelessWidget {
                   )),
               const Spacer(),
               RoundGradientButton(
-                title: "Login",
-                onPressed: () {
-                  Navigator.pushNamed(context, CompleteProfileScreen.routeName);
-                },
-              ),
-              SizedBox(height: media.width*0.01),
-              Row(
-                children: [
-                  Expanded(
-                      child: Container(
-                        width: double.maxFinite,
-                        height: 1,
-                        color: AppColors.grayColor.withOpacity(0.5),
-                      )),
-                  Text("  Or  ",
-                      style: TextStyle(
-                          color: AppColors.grayColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400)),
-                  Expanded(
-                      child: Container(
-                        width: double.maxFinite,
-                        height: 1,
-                        color: AppColors.grayColor.withOpacity(0.5),
-                      )),
-                ],
-              ),
-              const SizedBox(
-                height: 20,
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: () {
-
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primaryColor1.withOpacity(0.5), width: 1, ),
-                      ),
-                      child: Image.asset("assets/icons/google_icon.png",width: 20,height: 20,),
-                    ),
-                  ),
-                  SizedBox(width: 30,),
-                  GestureDetector(
-                    onTap: () {
-
-                    },
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.primaryColor1.withOpacity(0.5), width: 1, ),
-                      ),
-                      child: Image.asset("assets/icons/facebook_icon.png",width: 20,height: 20,),
-                    ),
-                  ),
-                ],
+                title: _isLoading ? "Connexion..." : "Login",
+                onPressed: _isLoading ? () {} : _login,
               ),
               const SizedBox(
                 height: 20,

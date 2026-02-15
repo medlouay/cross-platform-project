@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
           primaryColor: AppColors.primaryColor1,
           useMaterial3: true,
           fontFamily: "Poppins"),
-      home: const DashboardScreen(),
+      home: const LoginScreen(),
     );
   }
 }
