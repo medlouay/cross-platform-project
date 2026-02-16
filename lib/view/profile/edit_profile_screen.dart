@@ -108,19 +108,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     var media = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: AppColors.whiteColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.whiteColor,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         centerTitle: true,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.arrow_back, color: AppColors.blackColor),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).appBarTheme.foregroundColor,
+          ),
         ),
-        title: const Text(
+        title: Text(
           "Edit Profile",
           style: TextStyle(
-            color: AppColors.blackColor,
+            color: Theme.of(context).appBarTheme.foregroundColor,
             fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
@@ -135,11 +138,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 SizedBox(height: media.width * 0.05),
 
-                const Text(
+                Text(
                   "Update Your Information",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppColors.blackColor,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                     fontSize: 20,
                     fontFamily: "Poppins",
                     fontWeight: FontWeight.w700,

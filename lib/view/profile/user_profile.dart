@@ -5,6 +5,8 @@ import 'package:fitnessapp/view/profile/widgets/setting_row.dart';
 import 'package:fitnessapp/view/profile/widgets/title_subtitle_cell.dart';
 import 'package:fitnessapp/view/profile/edit_profile_screen.dart';
 import 'package:fitnessapp/view/profile/personal_data_screen.dart';
+import 'package:fitnessapp/view/profile/privacy_policy_screen.dart';
+import 'package:fitnessapp/view/profile/contact_us_screen.dart';
 import 'package:fitnessapp/view/login/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitnessapp/utils/profile_api.dart';
@@ -13,7 +15,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
-
+import 'package:fitnessapp/view/profile/settings_screen.dart';
 import '../../common_widgets/round_button.dart';
 
 class UserProfile extends StatefulWidget {
@@ -626,7 +628,35 @@ class _UserProfileState extends State<UserProfile> {
                         return SettingRow(
                           icon: iObj["image"].toString(),
                           title: iObj["name"].toString(),
-                          onPressed: () {},
+                          onPressed: () {
+                            // Handle Contact Us click
+                            if (iObj["tag"] == "5") {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ContactUsScreen(),
+                                ),
+                              );
+                            }
+                            // Handle Privacy Policy click
+                            if (iObj["tag"] == "6") {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const PrivacyPolicyScreen(),
+                                ),
+                              );
+                            }
+
+                            if (iObj["tag"] == "7") {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SettingsScreen(),
+                                ),
+                              );
+                            }
+                          },
                         );
                       },
                     )
