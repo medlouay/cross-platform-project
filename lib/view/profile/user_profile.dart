@@ -1,5 +1,6 @@
 import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/theme_provider.dart';
 import 'package:fitnessapp/view/profile/widgets/setting_row.dart';
 import 'package:fitnessapp/view/profile/widgets/title_subtitle_cell.dart';
 import 'package:fitnessapp/view/profile/edit_profile_screen.dart';
@@ -8,6 +9,10 @@ import 'package:fitnessapp/view/login/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitnessapp/utils/profile_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+import 'dart:io';
 
 import '../../common_widgets/round_button.dart';
 
@@ -19,13 +24,12 @@ class UserProfile extends StatefulWidget {
 }
 
 class _UserProfileState extends State<UserProfile> {
-  bool positive = false;
-
   // Add state variables for user data
   String firstName = "";
   String lastName = "";
   String email = "";
   String phoneNumber = "";
+  String profilePicture = "";
   String height = "";
   String weight = "";
   String age = "";
@@ -70,6 +74,7 @@ class _UserProfileState extends State<UserProfile> {
         lastName = data['last_name'] ?? '';
         email = data['email'] ?? '';
         phoneNumber = data['phone_number'] ?? '';
+        profilePicture = data['profile_picture'] ?? '';
         height = data['height']?.toString() ?? '';
         weight = data['weight']?.toString() ?? '';
         age = data['age']?.toString() ?? '';
@@ -78,12 +83,94 @@ class _UserProfileState extends State<UserProfile> {
 
       print('🟢 Profile loaded successfully');
       print('🟢 Name: "$firstName $lastName"');
+      print('🟢 Profile Picture: "$profilePicture"');
       print('🟢 Height: "$height", Weight: "$weight", Age: "$age"');
     } catch (e) {
       print('🔴 Error fetching profile: $e');
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  // Pick and upload profile picture
+  Future<void> _pickAndUploadImage() async {
+    final ImagePicker picker = ImagePicker();
+
+    // Show options: Camera or Gallery
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Choose Image Source'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.camera_alt, color: AppColors.primaryColor1),
+                title: Text('Camera'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: Icon(Icons.photo_library, color: AppColors.primaryColor1),
+                title: Text('Gallery'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+
+      if (image == null) return;
+
+      setState(() {
+        isLoading = true;
+      });
+
+      // Upload image
+      await ProfileApi.uploadProfilePicture(File(image.path));
+
+      // Refresh profile to get new image
+      await fetchUserProfile();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -153,18 +240,21 @@ class _UserProfileState extends State<UserProfile> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.whiteColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.whiteColor,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         centerTitle: true,
         elevation: 0,
-        title: const Text(
+        title: Text(
           "Profile",
           style: TextStyle(
-              color: AppColors.blackColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w700),
+            color: Theme.of(context).appBarTheme.foregroundColor,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         actions: [
           InkWell(
@@ -175,13 +265,15 @@ class _UserProfileState extends State<UserProfile> {
               width: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                  color: AppColors.lightGrayColor,
-                  borderRadius: BorderRadius.circular(10)),
+                color: isDarkMode ? Colors.grey[800] : AppColors.lightGrayColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Image.asset(
                 "assets/icons/more_icon.png",
                 width: 12,
                 height: 12,
                 fit: BoxFit.contain,
+                color: Theme.of(context).iconTheme.color,
               ),
             ),
           )
@@ -197,18 +289,58 @@ class _UserProfileState extends State<UserProfile> {
             children: [
               Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: Image.asset(
-                      "assets/images/user.png",
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    ),
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: profilePicture.isNotEmpty
+                            ? Image.network(
+                          '${dotenv.env['ENDPOINT']!.replaceAll('/profile', '')}/uploads/profile_pictures/$profilePicture',
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Image.asset(
+                              "assets/images/user.png",
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        )
+                            : Image.asset(
+                          "assets/images/user.png",
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: InkWell(
+                          onTap: _pickAndUploadImage,
+                          child: Container(
+                            padding: EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryColor1,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Theme.of(context).scaffoldBackgroundColor,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(
-                    width: 15,
-                  ),
+                  const SizedBox(width: 15),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +348,7 @@ class _UserProfileState extends State<UserProfile> {
                         Text(
                           "$firstName $lastName",
                           style: TextStyle(
-                            color: AppColors.blackColor,
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -257,9 +389,7 @@ class _UserProfileState extends State<UserProfile> {
                   )
                 ],
               ),
-              const SizedBox(
-                height: 15,
-              ),
+              const SizedBox(height: 15),
               Row(
                 children: [
                   Expanded(
@@ -268,18 +398,14 @@ class _UserProfileState extends State<UserProfile> {
                       subtitle: "Height",
                     ),
                   ),
-                  SizedBox(
-                    width: 15,
-                  ),
+                  SizedBox(width: 15),
                   Expanded(
                     child: TitleSubtitleCell(
                       title: weight.isNotEmpty ? "${weight}kg" : "N/A",
                       subtitle: "Weight",
                     ),
                   ),
-                  SizedBox(
-                    width: 15,
-                  ),
+                  SizedBox(width: 15),
                   Expanded(
                     child: TitleSubtitleCell(
                       title: age.isNotEmpty ? "${age}yo" : "N/A",
@@ -288,32 +414,31 @@ class _UserProfileState extends State<UserProfile> {
                   ),
                 ],
               ),
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
               Container(
-                padding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 decoration: BoxDecoration(
-                    color: AppColors.whiteColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 2)
-                    ]),
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 2,
+                    )
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "Account",
                       style: TextStyle(
-                        color: AppColors.blackColor,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(
-                      height: 8,
-                    ),
+                    const SizedBox(height: 8),
                     ListView.builder(
                       physics: const NeverScrollableScrollPhysics(),
                       shrinkWrap: true,
@@ -351,138 +476,146 @@ class _UserProfileState extends State<UserProfile> {
                   ],
                 ),
               ),
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
+              // THEME TOGGLE SECTION
               Container(
-                padding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 decoration: BoxDecoration(
-                    color: AppColors.whiteColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 2)
-                    ]),
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 2,
+                    )
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Notification",
+                      "Theme",
                       style: TextStyle(
-                        color: AppColors.blackColor,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(
-                      height: 8,
-                    ),
-                    SizedBox(
-                      height: 30,
-                      child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Image.asset("assets/icons/p_notification.png",
-                                height: 15, width: 15, fit: BoxFit.contain),
-                            const SizedBox(
-                              width: 15,
-                            ),
-                            Expanded(
-                              child: Text(
-                                "Pop-up Notification",
-                                style: TextStyle(
-                                  color: AppColors.blackColor,
-                                  fontSize: 12,
+                    const SizedBox(height: 8),
+                    Consumer<ThemeProvider>(
+                      builder: (context, themeProvider, child) {
+                        return SizedBox(
+                          height: 30,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Icon(
+                                themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                                size: 18,
+                                color: Theme.of(context).textTheme.bodyMedium?.color,
+                              ),
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Text(
+                                  themeProvider.isDarkMode ? "Dark Mode" : "Light Mode",
+                                  style: TextStyle(
+                                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
-                            ),
-                            CustomAnimatedToggleSwitch<bool>(
-                              current: positive,
-                              values: [false, true],
-                              dif: 0.0,
-                              indicatorSize: Size.square(30.0),
-                              animationDuration:
-                              const Duration(milliseconds: 200),
-                              animationCurve: Curves.linear,
-                              onChanged: (b) => setState(() => positive = b),
-                              iconBuilder: (context, local, global) {
-                                return const SizedBox();
-                              },
-                              defaultCursor: SystemMouseCursors.click,
-                              onTap: () => setState(() => positive = !positive),
-                              iconsTappable: false,
-                              wrapperBuilder: (context, global, child) {
-                                return Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Positioned(
+                              CustomAnimatedToggleSwitch<bool>(
+                                current: themeProvider.isDarkMode,
+                                values: [false, true],
+                                dif: 0.0,
+                                indicatorSize: Size.square(30.0),
+                                animationDuration: const Duration(milliseconds: 200),
+                                animationCurve: Curves.linear,
+                                onChanged: (value) => themeProvider.toggleTheme(),
+                                iconBuilder: (context, local, global) {
+                                  return const SizedBox();
+                                },
+                                defaultCursor: SystemMouseCursors.click,
+                                onTap: () => themeProvider.toggleTheme(),
+                                iconsTappable: false,
+                                wrapperBuilder: (context, global, child) {
+                                  return Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Positioned(
                                         left: 10.0,
                                         right: 10.0,
                                         height: 30.0,
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
                                             gradient: LinearGradient(
-                                                colors: AppColors.secondaryG),
-                                            borderRadius:
-                                            const BorderRadius.all(
-                                                Radius.circular(30.0)),
+                                              colors: AppColors.secondaryG,
+                                            ),
+                                            borderRadius: const BorderRadius.all(
+                                              Radius.circular(30.0),
+                                            ),
                                           ),
-                                        )),
-                                    child,
-                                  ],
-                                );
-                              },
-                              foregroundIndicatorBuilder: (context, global) {
-                                return SizedBox.fromSize(
-                                  size: const Size(10, 10),
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: AppColors.whiteColor,
-                                      borderRadius: const BorderRadius.all(
-                                          Radius.circular(50.0)),
-                                      boxShadow: const [
-                                        BoxShadow(
+                                        ),
+                                      ),
+                                      child,
+                                    ],
+                                  );
+                                },
+                                foregroundIndicatorBuilder: (context, global) {
+                                  return SizedBox.fromSize(
+                                    size: const Size(10, 10),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: const BorderRadius.all(
+                                          Radius.circular(50.0),
+                                        ),
+                                        boxShadow: const [
+                                          BoxShadow(
                                             color: Colors.black38,
                                             spreadRadius: 0.05,
                                             blurRadius: 1.1,
-                                            offset: Offset(0.0, 0.8))
-                                      ],
+                                            offset: Offset(0.0, 0.8),
+                                          )
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ]),
-                    )
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
               Container(
-                padding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 decoration: BoxDecoration(
-                    color: AppColors.whiteColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 2)
-                    ]),
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 2,
+                    )
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "Other",
                       style: TextStyle(
-                        color: AppColors.blackColor,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(
-                      height: 8,
-                    ),
+                    const SizedBox(height: 8),
                     ListView.builder(
                       physics: const NeverScrollableScrollPhysics(),
                       padding: EdgeInsets.zero,
@@ -500,19 +633,20 @@ class _UserProfileState extends State<UserProfile> {
                   ],
                 ),
               ),
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
               // Logout Button
               Container(
-                padding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 decoration: BoxDecoration(
-                    color: AppColors.whiteColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 2)
-                    ]),
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 2,
+                    )
+                  ],
+                ),
                 child: InkWell(
                   onTap: handleLogout,
                   child: Container(
@@ -538,9 +672,7 @@ class _UserProfileState extends State<UserProfile> {
                   ),
                 ),
               ),
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 25),
             ],
           ),
         ),
