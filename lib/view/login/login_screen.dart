@@ -1,5 +1,6 @@
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/utils/auth_api.dart';
+import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/dashboard/dashboard_screen.dart';
 import 'package:fitnessapp/view/signup/signup_screen.dart';
 import 'package:flutter/material.dart';
@@ -41,7 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await AuthApi.login(email: email, password: password);
+      final result = await AuthApi.login(email: email, password: password);
+      if (result['userId'] != null) {
+        Session.userId = int.tryParse(result['userId'].toString());
+      }
       if (!mounted) return;
 
       Navigator.pushNamedAndRemoveUntil(

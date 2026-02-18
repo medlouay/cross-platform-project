@@ -1,5 +1,7 @@
 import 'package:dotted_dashed_line/dotted_dashed_line.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/dashboard_api.dart';
+import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/activity_tracker/activity_tracker_screen.dart';
 import 'package:fitnessapp/view/finish_workout/finish_workout_screen.dart';
 import 'package:fitnessapp/view/home/widgets/workout_row.dart';
@@ -22,42 +24,62 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isLoadingSummary = true;
+  String? _summaryError;
+  Map<String, dynamic>? _summary;
 
-  List<int> showingTooltipOnSpots = [21];
+  List<int> showingTooltipOnSpots = [0];
 
-  List<FlSpot> get allSpots => const [
-        FlSpot(0, 20),
-        FlSpot(1, 25),
-        FlSpot(2, 40),
-        FlSpot(3, 50),
-        FlSpot(4, 35),
-        FlSpot(5, 40),
-        FlSpot(6, 30),
-        FlSpot(7, 20),
-        FlSpot(8, 25),
-        FlSpot(9, 40),
-        FlSpot(10, 50),
-        FlSpot(11, 35),
-        FlSpot(12, 50),
-        FlSpot(13, 60),
-        FlSpot(14, 40),
-        FlSpot(15, 50),
-        FlSpot(16, 20),
-        FlSpot(17, 25),
-        FlSpot(18, 40),
-        FlSpot(19, 50),
-        FlSpot(20, 35),
-        FlSpot(21, 80),
-        FlSpot(22, 30),
-        FlSpot(23, 20),
-        FlSpot(24, 25),
-        FlSpot(25, 40),
-        FlSpot(26, 50),
-        FlSpot(27, 35),
-        FlSpot(28, 50),
-        FlSpot(29, 60),
-        FlSpot(30, 40),
-      ];
+  List<FlSpot> get allSpots {
+    final series = _summary?['heart_rate_series'];
+    if (series is List && series.isNotEmpty) {
+      final spots = <FlSpot>[];
+      for (var i = 0; i < series.length; i++) {
+        final row = series[i];
+        num value = 0;
+        if (row is Map && row['value'] != null) {
+          final v = row['value'];
+          value = v is num ? v : (num.tryParse(v.toString()) ?? 0);
+        }
+        spots.add(FlSpot(i.toDouble(), value.toDouble()));
+      }
+      return spots;
+    }
+
+    return const [
+      FlSpot(0, 20),
+      FlSpot(1, 25),
+      FlSpot(2, 40),
+      FlSpot(3, 50),
+      FlSpot(4, 35),
+      FlSpot(5, 40),
+      FlSpot(6, 30),
+      FlSpot(7, 20),
+      FlSpot(8, 25),
+      FlSpot(9, 40),
+      FlSpot(10, 50),
+      FlSpot(11, 35),
+      FlSpot(12, 50),
+      FlSpot(13, 60),
+      FlSpot(14, 40),
+      FlSpot(15, 50),
+      FlSpot(16, 20),
+      FlSpot(17, 25),
+      FlSpot(18, 40),
+      FlSpot(19, 50),
+      FlSpot(20, 35),
+      FlSpot(21, 80),
+      FlSpot(22, 30),
+      FlSpot(23, 20),
+      FlSpot(24, 25),
+      FlSpot(25, 40),
+      FlSpot(26, 50),
+      FlSpot(27, 35),
+      FlSpot(28, 50),
+      FlSpot(29, 60),
+      FlSpot(30, 40),
+    ];
+  }
 
   List waterArr = [
     {"title": "6am - 8am", "subtitle": "600ml"},
@@ -82,15 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     isStrokeCapRound: true,
     dotData: FlDotData(show: false),
     belowBarData: BarAreaData(show: false),
-    spots: const [
-      FlSpot(1, 35),
-      FlSpot(2, 70),
-      FlSpot(3, 40),
-      FlSpot(4, 80),
-      FlSpot(5, 25),
-      FlSpot(6, 70),
-      FlSpot(7, 35),
-    ],
+    spots: weeklySpots,
   );
 
   LineChartBarData get lineChartBarData1_2 => LineChartBarData(
@@ -139,6 +153,125 @@ class _HomeScreenState extends State<HomeScreen> {
       "progress": 0.7
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSummary();
+  }
+
+  Future<void> _fetchSummary() async {
+    final userId = Session.userId;
+    if (userId == null) {
+      setState(() {
+        _summaryError = "User not logged in";
+        _isLoadingSummary = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingSummary = true;
+      _summaryError = null;
+    });
+
+    try {
+      final summary = await DashboardApi.fetchSummary(
+        userId: userId,
+        date: _todayString(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _summary = summary;
+        _isLoadingSummary = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _summaryError = e.toString();
+        _isLoadingSummary = false;
+      });
+    }
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return "$y-$m-$d";
+  }
+
+  num? _numFromSummary(String key) {
+    final totals = _summary?['totals'];
+    if (totals is Map && totals.containsKey(key)) {
+      final v = totals[key];
+      if (v is num) return v;
+      return num.tryParse(v.toString());
+    }
+    return null;
+  }
+
+  String get _heartRateText {
+    final v = _numFromSummary('heart_rate_avg');
+    if (v == null) return "-- BPM";
+    return "${v.round()} BPM";
+  }
+
+  String get _sleepText {
+    final minutes = _numFromSummary('sleep_minutes');
+    if (minutes == null) return "--";
+    final total = minutes.round();
+    final h = total ~/ 60;
+    final m = total % 60;
+    return "${h}h ${m}m";
+  }
+
+  String get _caloriesText {
+    final v = _numFromSummary('calories');
+    if (v == null) return "-- kCal";
+    return "${v.round()} kCal";
+  }
+
+  String get _waterText {
+    final ml = _numFromSummary('water_ml');
+    if (ml == null) return "--";
+    final liters = ml / 1000.0;
+    return "${liters.toStringAsFixed(1)} Liters";
+  }
+
+  String get _bmiText {
+    final v = _numFromSummary('bmi');
+    if (v == null) return "--";
+    return v.toStringAsFixed(1);
+  }
+
+  List<FlSpot> get weeklySpots {
+    final weekly = _summary?['weekly_steps'];
+    if (weekly is List && weekly.isNotEmpty) {
+      final spots = <FlSpot>[];
+      for (var i = 0; i < weekly.length; i++) {
+        final row = weekly[i];
+        num value = 0;
+        if (row is Map && row['steps'] != null) {
+          final v = row['steps'];
+          value = v is num ? v : (num.tryParse(v.toString()) ?? 0);
+        }
+        spots.add(FlSpot((i + 1).toDouble(), value.toDouble()));
+      }
+      return spots;
+    }
+
+    return const [
+      FlSpot(1, 35),
+      FlSpot(2, 70),
+      FlSpot(3, 40),
+      FlSpot(4, 80),
+      FlSpot(5, 25),
+      FlSpot(6, 70),
+      FlSpot(7, 35),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -369,7 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           0, 0, bounds.width, bounds.height));
                                 },
                                 child: Text(
-                                  "78 BPM",
+                                  _heartRateText,
                                   style: TextStyle(
                                     color: AppColors.blackColor,
                                     fontSize: 18,
@@ -538,7 +671,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         0, 0, bounds.width, bounds.height));
                               },
                               child: Text(
-                                "4 Liters",
+                                _waterText,
                                 style: TextStyle(
                                   color: AppColors.blackColor,
                                   fontSize: 14,
@@ -676,7 +809,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           0, 0, bounds.width, bounds.height));
                                 },
                                 child: Text(
-                                  "8h 20m",
+                                  _sleepText,
                                   style: TextStyle(
                                     color: AppColors.blackColor,
                                     fontSize: 14,
@@ -727,7 +860,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           0, 0, bounds.width, bounds.height));
                                 },
                                 child: Text(
-                                  "760 kCal",
+                                  _caloriesText,
                                   style: TextStyle(
                                     color: AppColors.blackColor,
                                     fontSize: 14,
@@ -1000,7 +1133,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: '',
                 radius: 55,
                 titlePositionPercentageOffset: 0.55,
-                badgeWidget: Text("20.1", style: TextStyle(
+                badgeWidget: Text(_bmiText, style: TextStyle(
                       color: AppColors.whiteColor,
                       fontWeight: FontWeight.w700,
                       fontSize: 12),
