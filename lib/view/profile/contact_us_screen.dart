@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/utils/profile_api.dart';
+import 'package:fitnessapp/utils/contact_api.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ContactUsScreen extends StatefulWidget {
@@ -86,18 +87,30 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
       _isLoading = true;
     });
 
-    // Simulate sending message (you can replace this with actual API call)
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final result = await ContactApi.sendMessage(
+        name: name,
+        email: email,
+        subject: subject,
+        message: message,
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
+      setState(() {
+        _isLoading = false;
+      });
 
-    _showMessage("Message sent successfully! We'll get back to you soon.");
+      _showMessage(result['message'] ?? "Message sent successfully!");
 
-    // Clear only subject and message fields, keep name and email
-    _subjectController.clear();
-    _messageController.clear();
+      // Clear only subject and message fields
+      _subjectController.clear();
+      _messageController.clear();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('Error sending message: $e');
+      _showMessage('Failed to send message. Please try again.');
+    }
   }
 
   void _showMessage(String message) {

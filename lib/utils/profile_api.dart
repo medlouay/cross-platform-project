@@ -6,9 +6,11 @@ import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileApi {
-  static String get baseUrl => '${dotenv.env['ENDPOINT']}/profile';
+  static String get baseUrl {
+    final endpoint = dotenv.env['ENDPOINT'] ?? 'http://10.0.2.2:3000';
+    return endpoint;
+  }
 
-  // ===================== GET PROFILE =====================
   static Future<Map<String, dynamic>> getProfile() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
@@ -18,7 +20,7 @@ class ProfileApi {
     }
 
     final response = await http.get(
-      Uri.parse(baseUrl),
+      Uri.parse('$baseUrl/profile'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -31,11 +33,10 @@ class ProfileApi {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to load profile: ${response.statusCode}');
+      throw Exception('Failed to load profile');
     }
   }
 
-  // ===================== UPDATE HEIGHT/WEIGHT/AGE =====================
   static Future<Map<String, dynamic>> updateProfile({
     required int height,
     required int weight,
@@ -48,11 +49,8 @@ class ProfileApi {
       throw Exception('No authentication token found');
     }
 
-    print('Updating profile to: $baseUrl');
-    print('Data: height=$height, weight=$weight, age=$age');
-
     final response = await http.put(
-      Uri.parse(baseUrl),
+      Uri.parse('$baseUrl/profile'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -71,11 +69,10 @@ class ProfileApi {
       return json.decode(response.body);
     } else {
       final error = json.decode(response.body);
-      throw Exception(error['error'] ?? 'Update failed');
+      throw Exception(error['error'] ?? 'Failed to update profile');
     }
   }
 
-  // ===================== UPDATE PERSONAL DATA =====================
   static Future<Map<String, dynamic>> updatePersonalData({
     required String firstName,
     required String lastName,
@@ -89,11 +86,8 @@ class ProfileApi {
       throw Exception('No authentication token found');
     }
 
-    print('Updating personal data to: $baseUrl/personal-data');
-    print('Data: firstName=$firstName, lastName=$lastName, email=$email, phone=$phoneNumber');
-
     final response = await http.patch(
-      Uri.parse('$baseUrl/personal-data'),
+      Uri.parse('$baseUrl/profile/personal-data'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -102,7 +96,7 @@ class ProfileApi {
         'first_name': firstName,
         'last_name': lastName,
         'email': email,
-        'phone_number': phoneNumber,
+        'phone_number': phoneNumber ?? '',
       }),
     );
 
@@ -113,11 +107,10 @@ class ProfileApi {
       return json.decode(response.body);
     } else {
       final error = json.decode(response.body);
-      throw Exception(error['error'] ?? 'Update failed');
+      throw Exception(error['error'] ?? 'Failed to update personal data');
     }
   }
 
-  // ===================== UPLOAD PROFILE PICTURE =====================
   static Future<Map<String, dynamic>> uploadProfilePicture(File imageFile) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
@@ -126,55 +119,67 @@ class ProfileApi {
       throw Exception('No authentication token found');
     }
 
-    print('Uploading profile picture to: $baseUrl/upload-picture');
-    print('Image path: ${imageFile.path}');
-
     var request = http.MultipartRequest(
       'POST',
-      Uri.parse('$baseUrl/upload-picture'),
+      Uri.parse('$baseUrl/profile/upload-picture'),
     );
 
     request.headers['Authorization'] = 'Bearer $token';
 
-    // Get the file extension
-    String fileName = imageFile.path.split('/').last;
-    String fileExtension = fileName.split('.').last.toLowerCase();
+    String ext = imageFile.path.split('.').last.toLowerCase();
+    String mimeType = 'image/jpeg';
+    if (ext == 'png') mimeType = 'image/png';
+    if (ext == 'gif') mimeType = 'image/gif';
 
-    // Set correct mime type based on extension
-    String mimeType;
-    if (fileExtension == 'jpg' || fileExtension == 'jpeg') {
-      mimeType = 'image/jpeg';
-    } else if (fileExtension == 'png') {
-      mimeType = 'image/png';
-    } else if (fileExtension == 'gif') {
-      mimeType = 'image/gif';
-    } else {
-      mimeType = 'image/jpeg'; // default
-    }
-
-    print('File name: $fileName');
-    print('Mime type: $mimeType');
-
-    // Add file with proper mime type
     request.files.add(
       await http.MultipartFile.fromPath(
         'profile_picture',
         imageFile.path,
-        filename: fileName,
-        contentType: MediaType('image', fileExtension == 'png' ? 'png' : 'jpeg'),
+        contentType: MediaType.parse(mimeType),
       ),
     );
 
+    print('Uploading profile picture...');
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
 
-    print('Upload Profile Picture Response: ${response.statusCode}');
-    print('Upload Profile Picture Body: ${response.body}');
+    print('Upload Response: ${response.statusCode}');
+    print('Upload Body: ${response.body}');
 
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Upload failed: ${response.body}');
+      final error = json.decode(response.body);
+      throw Exception(error['error'] ?? 'Failed to upload profile picture');
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    print('🗑️ Deleting account...');
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/profile/delete-account'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    print('Delete Account Response: ${response.statusCode}');
+    print('Delete Account Body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      final error = json.decode(response.body);
+      throw Exception(error['error'] ?? 'Failed to delete account');
     }
   }
 }
