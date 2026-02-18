@@ -89,3 +89,65 @@ CREATE TABLE IF NOT EXISTS progress_photos (
   INDEX idx_taken_at (taken_at),
   INDEX idx_user_taken (user_id, taken_at)
 );
+
+
+-- Devices for health data sources (phone sensors, smartwatches, etc.)
+CREATE TABLE IF NOT EXISTS devices (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  device_uuid VARCHAR(255) NOT NULL,
+  source ENUM('google_fit', 'healthkit', 'wear_os', 'watch_os', 'manual', 'other') DEFAULT 'other',
+  platform VARCHAR(50),
+  model VARCHAR(100),
+  last_seen_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_user_device (user_id, device_uuid),
+  INDEX idx_devices_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+-- Daily aggregates for dashboard
+CREATE TABLE IF NOT EXISTS health_daily (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  device_id INT NOT NULL,
+  source ENUM('google_fit', 'healthkit', 'wear_os', 'watch_os', 'manual', 'other') DEFAULT 'other',
+  date DATE NOT NULL,
+  timezone VARCHAR(50),
+  steps INT,
+  calories DOUBLE,
+  distance_m DOUBLE,
+  active_minutes INT,
+  sleep_minutes INT,
+  heart_rate_avg INT,
+  heart_rate_min INT,
+  heart_rate_max INT,
+  water_ml INT,
+  weight_kg DECIMAL(5,2),
+  bmi DECIMAL(5,2),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_daily (user_id, device_id, source, date),
+  INDEX idx_health_user_date (user_id, date),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+
+-- Time-series samples for charts
+CREATE TABLE IF NOT EXISTS health_samples (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  device_id INT NOT NULL,
+  source ENUM('google_fit', 'healthkit', 'wear_os', 'watch_os', 'manual', 'other') DEFAULT 'other',
+  metric ENUM('heart_rate', 'steps', 'calories', 'distance', 'active_minutes', 'sleep', 'water', 'weight', 'bmi') NOT NULL,
+  value DOUBLE NOT NULL,
+  unit VARCHAR(20),
+  recorded_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_samples_user_metric_time (user_id, metric, recorded_at),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
