@@ -1,4 +1,7 @@
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/dashboard_api.dart';
+import 'package:fitnessapp/utils/health_service.dart';
+import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/activity_tracker/widgets/latest_activity_row.dart';
 import 'package:fitnessapp/view/activity_tracker/widgets/today_target_cell.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -13,8 +16,77 @@ class ActivityTrackerScreen extends StatefulWidget {
 }
 
 class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
-
   int touchedIndex = -1;
+  int _todaySteps = 0;
+  int _waterMl = 0;
+  List<Map<String, dynamic>> _weeklySteps = [];
+  bool _isLoading = true;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _fetchData() async {
+    final userId = Session.userId;
+    if (userId == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMsg = 'Please log in';
+      });
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _errorMsg = null;
+    });
+    try {
+      final summary = await DashboardApi.fetchSummary(
+        userId: userId,
+        date: _todayString(),
+      );
+      final totals = summary['totals'] as Map? ?? {};
+      final steps = totals['steps'];
+      final water = totals['water_ml'];
+      final weekly = (summary['weekly_steps'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      setState(() {
+        _todaySteps = (steps is num) ? steps.round() : 0;
+        _waterMl = (water is num) ? water.round() : 0;
+        _weeklySteps = weekly;
+        _isLoading = false;
+      });
+      // Sync steps from device
+      try {
+        final synced = await HealthService.syncStepsToBackend(userId);
+        if (synced != null && mounted) {
+          final updated = await DashboardApi.fetchSummary(
+            userId: userId,
+            date: _todayString(),
+          );
+          final u = updated['totals'] as Map? ?? {};
+          setState(() {
+            _todaySteps = ((u['steps'] ?? _todaySteps) is num)
+                ? (u['steps'] as num).round()
+                : _todaySteps;
+          });
+        }
+      } catch (_) {}
+    } catch (e) {
+      setState(() {
+        _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
 
   List latestArr = [
     {
@@ -67,7 +139,7 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
         ),
         actions: [
           InkWell(
-            onTap: () {},
+            onTap: _isLoading ? null : () => _fetchData(),
             child: Container(
               margin: const EdgeInsets.all(8),
               height: 40,
@@ -145,22 +217,22 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
                     const SizedBox(
                       height: 15,
                     ),
-                    const Row(
+                    Row(
                       children: [
                         Expanded(
                           child: TodayTargetCell(
                             icon: "assets/icons/water_icon.png",
-                            value: "8L",
+                            value: _waterMl > 0
+                                ? '${(_waterMl / 1000).toStringAsFixed(1)}L'
+                                : '--',
                             title: "Water Intake",
                           ),
                         ),
-                        SizedBox(
-                          width: 15,
-                        ),
+                        const SizedBox(width: 15),
                         Expanded(
                           child: TodayTargetCell(
                             icon: "assets/icons/foot_icon.png",
-                            value: "2400",
+                            value: _isLoading ? '...' : '$_todaySteps',
                             title: "Foot Steps",
                           ),
                         ),
@@ -407,25 +479,20 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
     );
   }
 
+  double _stepsForDay(int index) {
+    if (_weeklySteps.isEmpty || index >= _weeklySteps.length) return 0;
+    final s = _weeklySteps[index]['steps'];
+    if (s is num) return s.toDouble();
+    return (num.tryParse(s?.toString() ?? '0') ?? 0).toDouble();
+  }
+
   List<BarChartGroupData> showingGroups() => List.generate(7, (i) {
-    switch (i) {
-      case 0:
-        return makeGroupData(0, 5, AppColors.primaryG , isTouched: i == touchedIndex);
-      case 1:
-        return makeGroupData(1, 10.5, AppColors.secondaryG, isTouched: i == touchedIndex);
-      case 2:
-        return makeGroupData(2, 5, AppColors.primaryG , isTouched: i == touchedIndex);
-      case 3:
-        return makeGroupData(3, 7.5, AppColors.secondaryG, isTouched: i == touchedIndex);
-      case 4:
-        return makeGroupData(4, 15, AppColors.primaryG , isTouched: i == touchedIndex);
-      case 5:
-        return makeGroupData(5, 5.5, AppColors.secondaryG, isTouched: i == touchedIndex);
-      case 6:
-        return makeGroupData(6, 8.5, AppColors.primaryG , isTouched: i == touchedIndex);
-      default:
-        return throw Error();
-    }
+    final value = _weeklySteps.isNotEmpty
+        ? _stepsForDay(i)
+        : [5, 10.5, 5, 7.5, 15, 5.5, 8.5][i];
+    final colors = i.isEven ? AppColors.primaryG : AppColors.secondaryG;
+    return makeGroupData(i, value.clamp(0, 20).toDouble(), colors,
+        isTouched: i == touchedIndex);
   });
 
   BarChartGroupData makeGroupData(

@@ -1,6 +1,7 @@
 import 'package:dotted_dashed_line/dotted_dashed_line.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/utils/dashboard_api.dart';
+import 'package:fitnessapp/utils/health_service.dart';
 import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/activity_tracker/activity_tracker_screen.dart';
 import 'package:fitnessapp/view/finish_workout/finish_workout_screen.dart';
@@ -185,6 +186,17 @@ class _HomeScreenState extends State<HomeScreen> {
         _summary = summary;
         _isLoadingSummary = false;
       });
+      // Sync steps from device/smartwatch to backend (non-blocking)
+      try {
+        final synced = await HealthService.syncStepsToBackend(userId);
+        if (synced != null && mounted) {
+          final updated = await DashboardApi.fetchSummary(
+            userId: userId,
+            date: _todayString(),
+          );
+          if (mounted) setState(() => _summary = updated);
+        }
+      } catch (_) {}
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -244,6 +256,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final v = _numFromSummary('bmi');
     if (v == null) return "--";
     return v.toStringAsFixed(1);
+  }
+
+  String get _stepsText {
+    final v = _numFromSummary('steps');
+    if (v == null) return "--";
+    return "${v.round()}";
   }
 
   List<FlSpot> get weeklySpots {
@@ -430,28 +448,46 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: BoxDecoration(
                       color: AppColors.primaryColor1.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(15)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        "Today Target",
-                        style: TextStyle(
-                          color: AppColors.blackColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Today Target",
+                            style: TextStyle(
+                              color: AppColors.blackColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                "Steps: $_stepsText",
+                                style: TextStyle(
+                                  color: AppColors.blackColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 75,
+                                height: 30,
+                                child: RoundButton(
+                                  title: "check",
+                                  type: RoundButtonType.primaryBG,
+                                  onPressed: () {
+                                    Navigator.pushNamed(context, ActivityTrackerScreen.routeName);
+                                  },
+                                ),
+                              )
+                            ],
+                          )
+                        ],
                       ),
-                      SizedBox(
-                        width: 75,
-                        height: 30,
-                        child: RoundButton(
-                          title: "check",
-                          type: RoundButtonType.primaryBG,
-                          onPressed: () {
-                            Navigator.pushNamed(context, ActivityTrackerScreen.routeName);
-                          },
-                        ),
-                      )
                     ],
                   ),
                 ),
