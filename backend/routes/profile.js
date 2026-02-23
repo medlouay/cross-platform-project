@@ -278,5 +278,79 @@ router.patch("/personal-data", (req, res) => {
         return res.status(401).json({ error: "Invalid token" });
     }
 });
+// DELETE - Delete user account permanently
+router.delete("/delete-account", (req, res) => {
+    console.log("🗑️ Delete account request received");
+    
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header missing" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        return res.status(401).json({ error: "Token missing" });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.userId;
+
+        console.log(`Attempting to delete user ID: ${userId}`);
+
+        // Get user data first (to delete profile picture)
+        const getUserQuery = "SELECT profile_picture FROM users WHERE id = ?";
+        con.query(getUserQuery, [userId], (err, results) => {
+            if (err) {
+                console.error("Get user error:", err);
+                return res.status(500).json({ error: "Failed to delete account" });
+            }
+
+            if (results.length === 0) {
+                return res.status(404).json({ error: "User not found" });
+            }
+
+            const user = results[0];
+
+            // Delete profile picture file if exists
+            if (user.profile_picture) {
+                const filePath = path.join('uploads/profile_pictures', user.profile_picture);
+                
+                if (fs.existsSync(filePath)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                        console.log(`Deleted profile picture: ${user.profile_picture}`);
+                    } catch (fileErr) {
+                        console.error("Error deleting profile picture:", fileErr);
+                        // Continue with account deletion even if file delete fails
+                    }
+                }
+            }
+
+            // Delete user from database
+            const deleteQuery = "DELETE FROM users WHERE id = ?";
+            con.query(deleteQuery, [userId], (err, result) => {
+                if (err) {
+                    console.error("Delete user error:", err);
+                    return res.status(500).json({ error: "Failed to delete account" });
+                }
+
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({ error: "User not found" });
+                }
+
+                console.log(`✅ User ${userId} deleted successfully`);
+                res.json({
+                    message: "Account deleted successfully",
+                    success: true
+                });
+            });
+        });
+
+    } catch (err) {
+        console.error("❌ Token verification error:", err);
+        return res.status(401).json({ error: "Invalid token" });
+    }
+});
 
 module.exports = router;
