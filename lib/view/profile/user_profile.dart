@@ -43,16 +43,6 @@ class _UserProfileState extends State<UserProfile> {
   List accountArr = [
     {"image": "assets/icons/p_personal.png", "name": "Personal Data", "tag": "1"},
     {"image": "assets/icons/p_achi.png", "name": "BMI & Workout Plan", "tag": "8"},
-    {
-      "image": "assets/icons/p_activity.png",
-      "name": "Activity History",
-      "tag": "3"
-    },
-    {
-      "image": "assets/icons/p_workout.png",
-      "name": "Workout Progress",
-      "tag": "4"
-    }
   ];
 
   List otherArr = [
