@@ -114,6 +114,7 @@ router.post("/ingest", (req, res) => {
                 con.query(dailySql, dailyParams, (err) => {
                     if (err) return res.status(500).json({ error: err })
 
+                        console.log(samples , Array.isArray(samples) )
                     if (!samples || !Array.isArray(samples) || samples.length === 0) {
                         return res.json({ message: "Ingested aggregates only" })
                     }
@@ -131,6 +132,8 @@ router.post("/ingest", (req, res) => {
                         ])
 
                     if (rows.length === 0) {
+                                                console.log('enter 2')
+
                         return res.json({ message: "Ingested aggregates only" })
                     }
 

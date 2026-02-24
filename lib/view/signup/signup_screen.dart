@@ -183,8 +183,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         },
                         icon: Icon(
                           isCheck
-                              ? Icons.check_box_outline_blank_outlined
-                              : Icons.check_box_outlined,
+                              ? Icons.check_box_outlined
+                              : Icons.check_box_outline_blank_outlined,
                           color: AppColors.grayColor,
                         )),
                     Expanded(
