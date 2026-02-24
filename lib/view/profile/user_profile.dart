@@ -7,6 +7,8 @@ import 'package:fitnessapp/view/profile/edit_profile_screen.dart';
 import 'package:fitnessapp/view/profile/personal_data_screen.dart';
 import 'package:fitnessapp/view/profile/privacy_policy_screen.dart';
 import 'package:fitnessapp/view/profile/contact_us_screen.dart';
+import 'package:fitnessapp/view/profile/settings_screen.dart';
+import 'package:fitnessapp/view/profile/bmi_workout_screen.dart';
 import 'package:fitnessapp/view/login/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitnessapp/utils/profile_api.dart';
@@ -15,7 +17,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
-import 'package:fitnessapp/view/profile/settings_screen.dart';
+import 'dart:math';
+
 import '../../common_widgets/round_button.dart';
 
 class UserProfile extends StatefulWidget {
@@ -39,7 +42,7 @@ class _UserProfileState extends State<UserProfile> {
 
   List accountArr = [
     {"image": "assets/icons/p_personal.png", "name": "Personal Data", "tag": "1"},
-    {"image": "assets/icons/p_achi.png", "name": "Achievement", "tag": "2"},
+    {"image": "assets/icons/p_achi.png", "name": "BMI & Workout Plan", "tag": "8"},
     {
       "image": "assets/icons/p_activity.png",
       "name": "Activity History",
@@ -67,6 +70,25 @@ class _UserProfileState extends State<UserProfile> {
   Future<void> fetchUserProfile() async {
     try {
       print('🔵 Fetching profile...');
+
+      // TOKEN CHECK
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      print('🔑 Token check in profile: ${token != null ? "EXISTS" : "MISSING"}');
+      if (token != null) {
+        print('🔑 Token preview: ${token.substring(0, min(20, token.length))}...');
+      } else {
+        print('❌ No token found! User needs to login again.');
+        // Redirect to login if no token
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+          );
+        }
+        return;
+      }
+
       final data = await ProfileApi.getProfile();
 
       print('🔵 Raw data received: $data');
@@ -89,6 +111,17 @@ class _UserProfileState extends State<UserProfile> {
       print('🟢 Height: "$height", Weight: "$weight", Age: "$age"');
     } catch (e) {
       print('🔴 Error fetching profile: $e');
+
+      // If error is authentication related, redirect to login
+      if (e.toString().contains('authentication') || e.toString().contains('token')) {
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+          );
+        }
+      }
+
       setState(() {
         isLoading = false;
       });
@@ -471,125 +504,34 @@ class _UserProfileState extends State<UserProfile> {
                                 fetchUserProfile();
                               }
                             }
+
+                            // Handle BMI & Workout Plan click
+                            if (iObj["tag"] == "8") {
+                              if (height.isEmpty || weight.isEmpty || age.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please update your height, weight, and age first'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => BMIWorkoutScreen(
+                                    height: height,
+                                    weight: weight,
+                                    age: age,
+                                  ),
+                                ),
+                              );
+                            }
                           },
                         );
                       },
                     )
-                  ],
-                ),
-              ),
-              const SizedBox(height: 25),
-              // THEME TOGGLE SECTION
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 2,
-                    )
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Theme",
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Consumer<ThemeProvider>(
-                      builder: (context, themeProvider, child) {
-                        return SizedBox(
-                          height: 30,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Icon(
-                                themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                                size: 18,
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: Text(
-                                  themeProvider.isDarkMode ? "Dark Mode" : "Light Mode",
-                                  style: TextStyle(
-                                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                              CustomAnimatedToggleSwitch<bool>(
-                                current: themeProvider.isDarkMode,
-                                values: [false, true],
-                                dif: 0.0,
-                                indicatorSize: Size.square(30.0),
-                                animationDuration: const Duration(milliseconds: 200),
-                                animationCurve: Curves.linear,
-                                onChanged: (value) => themeProvider.toggleTheme(),
-                                iconBuilder: (context, local, global) {
-                                  return const SizedBox();
-                                },
-                                defaultCursor: SystemMouseCursors.click,
-                                onTap: () => themeProvider.toggleTheme(),
-                                iconsTappable: false,
-                                wrapperBuilder: (context, global, child) {
-                                  return Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Positioned(
-                                        left: 10.0,
-                                        right: 10.0,
-                                        height: 30.0,
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: AppColors.secondaryG,
-                                            ),
-                                            borderRadius: const BorderRadius.all(
-                                              Radius.circular(30.0),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      child,
-                                    ],
-                                  );
-                                },
-                                foregroundIndicatorBuilder: (context, global) {
-                                  return SizedBox.fromSize(
-                                    size: const Size(10, 10),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: const BorderRadius.all(
-                                          Radius.circular(50.0),
-                                        ),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Colors.black38,
-                                            spreadRadius: 0.05,
-                                            blurRadius: 1.1,
-                                            offset: Offset(0.0, 0.8),
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -647,7 +589,7 @@ class _UserProfileState extends State<UserProfile> {
                                 ),
                               );
                             }
-
+                            // Handle Settings click
                             if (iObj["tag"] == "7") {
                               Navigator.push(
                                 context,
