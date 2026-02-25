@@ -88,33 +88,35 @@ class NotificationRow extends StatelessWidget {
               ),
             ),
           ),
-          PopupMenuButton<String>(
-            padding: EdgeInsets.zero,
-            icon: Image.asset(
-              "assets/icons/sub_menu_icon.png",
-              width: 15,
-              height: 15,
-              fit: BoxFit.contain,
-            ),
-            onSelected: (value) {
-              if (value == 'read') {
-                onMarkAsRead?.call();
-              } else if (value == 'delete') {
-                onDelete?.call();
-              }
-            },
-            itemBuilder: (context) => [
-              if (!isRead)
-                const PopupMenuItem(
-                  value: 'read',
-                  child: Text('Mark as read'),
-                ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Text('Delete', style: TextStyle(color: Colors.red)),
+          if (onMarkAsRead != null || onDelete != null)
+            PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
+              icon: Image.asset(
+                "assets/icons/sub_menu_icon.png",
+                width: 15,
+                height: 15,
+                fit: BoxFit.contain,
               ),
-            ],
-          ),
+              onSelected: (value) {
+                if (value == 'read') {
+                  onMarkAsRead?.call();
+                } else if (value == 'delete') {
+                  onDelete?.call();
+                }
+              },
+              itemBuilder: (context) => [
+                if (!isRead && onMarkAsRead != null)
+                  const PopupMenuItem(
+                    value: 'read',
+                    child: Text('Mark as read'),
+                  ),
+                if (onDelete != null)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete', style: TextStyle(color: Colors.red)),
+                  ),
+              ],
+            ),
         ],
       ),
     );

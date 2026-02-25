@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import '../../common_widgets/round_button.dart';
 import '../../utils/common.dart';
 import '../../utils/schedule_api.dart';
+import '../../utils/schedule_notification_service.dart';
+import '../../utils/session.dart';
 import '../../utils/workout_api.dart';
 import '../workour_detail_view/widgets/icon_title_next_row.dart';
 
@@ -75,7 +77,8 @@ class _AddScheduleViewState extends State<AddScheduleView> {
       final scheduledDate = DateFormat('yyyy-MM-dd').format(widget.date);
       final scheduledTime = DateFormat('HH:mm:ss').format(selectedTime);
 
-      await ScheduleApi.createSchedule(
+      final created = await ScheduleApi.createSchedule(
+        userId: Session.userId,
         workoutId: selectedWorkout!['id'],
         scheduledDate: scheduledDate,
         scheduledTime: scheduledTime,
@@ -84,6 +87,16 @@ class _AddScheduleViewState extends State<AddScheduleView> {
         repetitions: customRepetitions,
         weights: customWeights,
       );
+
+      final scheduleId = created['schedule_id'];
+      if (scheduleId != null) {
+        await ScheduleNotificationService.scheduleFromParts(
+          scheduleId: int.parse(scheduleId.toString()),
+          scheduledDate: scheduledDate,
+          scheduledTime: scheduledTime,
+          workoutName: selectedWorkout?['name']?.toString() ?? 'Workout',
+        );
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Schedule added successfully!')),

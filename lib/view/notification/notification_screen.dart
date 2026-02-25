@@ -1,7 +1,11 @@
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/utils/notification_api.dart';
+import 'package:fitnessapp/utils/schedule_api.dart';
+import 'package:fitnessapp/utils/schedule_notification_service.dart';
+import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/notification/widgets/notification_row.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class NotificationScreen extends StatefulWidget {
   static String routeName = "/NotificationScreen";
@@ -14,6 +18,7 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   List<Map<String, dynamic>> _notifications = [];
+  List<Map<String, dynamic>> _scheduleNotifications = [];
   bool _isLoading = true;
   String? _errorMsg;
   int _page = 1;
@@ -24,6 +29,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   void initState() {
     super.initState();
     _fetchNotifications();
+    _fetchScheduleNotifications();
   }
 
   /// Format ISO date to "About X ago" style
@@ -101,6 +107,85 @@ class _NotificationScreenState extends State<NotificationScreen> {
         _isLoadingMore = false;
       });
     }
+  }
+
+  Future<void> _fetchScheduleNotifications() async {
+    final userId = Session.userId;
+    if (userId == null) return;
+
+    try {
+      final now = DateTime.now();
+      final startDate = DateFormat('yyyy-MM-dd').format(now);
+      final endDate =
+          DateFormat('yyyy-MM-dd').format(now.add(const Duration(days: 7)));
+
+      final schedules = await ScheduleApi.fetchSchedules(
+        userId: userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      for (final s in schedules) {
+        if (s is! Map) continue;
+        if ((s['status'] ?? 'scheduled') != 'scheduled') continue;
+        await ScheduleNotificationService.scheduleFromSchedule(s);
+      }
+
+      final list = schedules
+          .where((s) => s is Map && (s['status'] ?? 'scheduled') == 'scheduled')
+          .map<Map<String, dynamic>>((s) {
+        final map = Map<String, dynamic>.from(s as Map);
+        final dateStr = map['scheduled_date']?.toString() ?? '';
+        final timeStr = map['scheduled_time']?.toString() ?? '';
+        final scheduledAt = _parseScheduleDateTime(dateStr, timeStr);
+        final workoutName = map['workout_name']?.toString() ?? 'Workout';
+        final timeLabel = scheduledAt != null
+            ? _formatScheduleLabel(scheduledAt)
+            : '$dateStr $timeStr';
+        return {
+          'local': true,
+          'type': 'workout',
+          'title': 'Workout scheduled',
+          'message': '$workoutName at $timeLabel',
+          'time': timeLabel,
+          'isRead': true,
+        };
+      }).toList();
+
+      if (mounted) {
+        setState(() => _scheduleNotifications = list);
+      }
+    } catch (_) {
+      // Best-effort: avoid blocking the notifications screen.
+    }
+  }
+
+  static DateTime? _parseScheduleDateTime(String date, String time) {
+    try {
+      final d = date.split('-');
+      final t = time.split(':');
+      if (d.length < 3 || t.length < 2) return null;
+      final year = int.parse(d[0]);
+      final month = int.parse(d[1]);
+      final day = int.parse(d[2]);
+      final hour = int.parse(t[0]);
+      final minute = int.parse(t[1]);
+      final second = t.length > 2 ? int.parse(t[2]) : 0;
+      return DateTime(year, month, day, hour, minute, second);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _formatScheduleLabel(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final dateOnly = DateTime(dt.year, dt.month, dt.day);
+    final time = DateFormat('hh:mm a').format(dt);
+    if (dateOnly == today) return 'Today $time';
+    if (dateOnly == tomorrow) return 'Tomorrow $time';
+    return DateFormat('MMM d, hh:mm a').format(dt);
   }
 
   Future<void> _onMarkAsRead(int id) async {
@@ -203,17 +288,22 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => _fetchNotifications(refresh: true),
+        onRefresh: () async {
+          await _fetchNotifications(refresh: true);
+          await _fetchScheduleNotifications();
+        },
         child: _buildBody(),
       ),
     );
   }
 
   Widget _buildBody() {
-    if (_isLoading && _notifications.isEmpty) {
+    if (_isLoading && _notifications.isEmpty && _scheduleNotifications.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_errorMsg != null && _notifications.isEmpty) {
+    if (_errorMsg != null &&
+        _notifications.isEmpty &&
+        _scheduleNotifications.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -236,6 +326,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
       );
     }
     if (_notifications.isEmpty) {
+      if (_scheduleNotifications.isNotEmpty) {
+        return _buildList();
+      }
       return const Center(
         child: Text(
           'No notifications yet',
@@ -244,11 +337,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
       );
     }
 
+    return _buildList();
+  }
+
+  Widget _buildList() {
+    final combined = [
+      ..._scheduleNotifications,
+      ..._notifications,
+    ];
+
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
-      itemCount: _notifications.length + (_hasMore ? 1 : 0),
+      itemCount: combined.length + (_hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _notifications.length) {
+        if (index == combined.length) {
           if (_hasMore && !_isLoadingMore) {
             _fetchNotifications(); // load next page
           }
@@ -259,17 +361,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 )
               : const SizedBox.shrink();
         }
-        final nObj = _notifications[index];
+        final nObj = combined[index];
+        final isLocal = nObj['local'] == true;
         return NotificationRow(
           nObj: nObj,
-          onMarkAsRead: (nObj['isRead'] == true || nObj['isRead'] == 1)
+          onMarkAsRead: isLocal ||
+                  (nObj['isRead'] == true || nObj['isRead'] == 1)
               ? null
               : () => _onMarkAsRead(nObj['id'] as int),
-          onDelete: () => _onDelete(nObj['id'] as int),
+          onDelete: isLocal ? null : () => _onDelete(nObj['id'] as int),
         );
       },
       separatorBuilder: (context, index) {
-        if (index >= _notifications.length) return const SizedBox.shrink();
+        if (index >= combined.length) return const SizedBox.shrink();
         return Divider(
           color: AppColors.grayColor.withOpacity(0.5),
           height: 1,

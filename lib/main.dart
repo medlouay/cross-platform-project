@@ -1,5 +1,6 @@
 import 'package:fitnessapp/routes.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
+import 'package:fitnessapp/utils/local_notifications.dart';
 import 'package:fitnessapp/utils/theme_provider.dart';
 import 'package:fitnessapp/view/dashboard/dashboard_screen.dart';
 import 'package:fitnessapp/view/login/login_screen.dart';
@@ -14,6 +15,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   print('ENDPOINT loaded: ${dotenv.env['ENDPOINT']}');
+  await LocalNotifications.init();
+  await LocalNotifications.requestPermissions();
 
   runApp(
     ChangeNotifierProvider(

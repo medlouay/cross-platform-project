@@ -2,6 +2,7 @@ import 'package:dotted_dashed_line/dotted_dashed_line.dart';
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/utils/dashboard_api.dart';
 import 'package:fitnessapp/utils/health_service.dart';
+import 'package:fitnessapp/utils/schedule_notification_service.dart';
 import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/activity_tracker/activity_tracker_screen.dart';
 import 'package:fitnessapp/view/finish_workout/finish_workout_screen.dart';
@@ -159,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _fetchSummary();
+    ScheduleNotificationService.syncUpcomingSchedules();
   }
 
   Future<void> _fetchSummary() async {
@@ -316,6 +318,16 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     final tooltipsOnBar = lineBarsData[0];
+    final heartTooltipIndexes = showingTooltipOnSpots
+        .where((index) =>
+            index >= 0 && index < tooltipsOnBar.spots.length)
+        .toList();
+
+    final workoutTooltipsOnBar = lineBarsData1[0];
+    final workoutTooltipIndexes = showingTooltipOnSpots
+        .where((index) =>
+            index >= 0 && index < workoutTooltipsOnBar.spots.length)
+        .toList();
 
 
     return Scaffold(
@@ -552,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         LineChart(
                           LineChartData(
                             showingTooltipIndicators:
-                                showingTooltipOnSpots.map((index) {
+                                heartTooltipIndexes.map((index) {
                               return ShowingTooltipIndicators([
                                 LineBarSpot(
                                   tooltipsOnBar,
@@ -999,12 +1011,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: LineChart(
                       LineChartData(
                         showingTooltipIndicators:
-                        showingTooltipOnSpots.map((index) {
+                        workoutTooltipIndexes.map((index) {
                           return ShowingTooltipIndicators([
                             LineBarSpot(
-                              tooltipsOnBar,
-                              lineBarsData.indexOf(tooltipsOnBar),
-                              tooltipsOnBar.spots[index],
+                              workoutTooltipsOnBar,
+                              lineBarsData1.indexOf(workoutTooltipsOnBar),
+                              workoutTooltipsOnBar.spots[index],
                             ),
                           ]);
                         }).toList(),
