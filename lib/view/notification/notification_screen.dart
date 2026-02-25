@@ -24,12 +24,29 @@ class _NotificationScreenState extends State<NotificationScreen> {
   int _page = 1;
   bool _hasMore = true;
   bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _fetchNotifications();
     _fetchScheduleNotifications();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_hasMore || _isLoadingMore || _isLoading) return;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      _fetchNotifications();
+    }
   }
 
   /// Format ISO date to "About X ago" style
@@ -347,13 +364,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
     ];
 
     return ListView.separated(
+      controller: _scrollController,
       padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 25),
       itemCount: combined.length + (_hasMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == combined.length) {
-          if (_hasMore && !_isLoadingMore) {
-            _fetchNotifications(); // load next page
-          }
           return _isLoadingMore
               ? const Padding(
                   padding: EdgeInsets.all(16),

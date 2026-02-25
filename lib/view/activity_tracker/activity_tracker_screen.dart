@@ -1,11 +1,13 @@
 import 'package:fitnessapp/utils/app_colors.dart';
 import 'package:fitnessapp/utils/dashboard_api.dart';
 import 'package:fitnessapp/utils/health_service.dart';
+import 'package:fitnessapp/utils/local_notifications.dart';
 import 'package:fitnessapp/utils/session.dart';
 import 'package:fitnessapp/view/activity_tracker/widgets/latest_activity_row.dart';
 import 'package:fitnessapp/view/activity_tracker/widgets/today_target_cell.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivityTrackerScreen extends StatefulWidget {
   static String routeName = "/ActivityTrackerScreen";
@@ -19,6 +21,8 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
   int touchedIndex = -1;
   int _todaySteps = 0;
   int _waterMl = 0;
+  int _targetSteps = 0;
+  int _targetWaterMl = 0;
   List<Map<String, dynamic>> _weeklySteps = [];
   bool _isLoading = true;
   String? _errorMsg;
@@ -26,7 +30,39 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
   @override
   void initState() {
     super.initState();
+    _loadTargets();
     _fetchData();
+  }
+
+  Future<void> _loadTargets() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _targetSteps = prefs.getInt('target_steps') ?? 0;
+      _targetWaterMl = prefs.getInt('target_water_ml') ?? 0;
+    });
+  }
+
+  Future<void> _saveTargets({
+    required int stepsTarget,
+    required int waterTargetMl,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('target_steps', stepsTarget);
+    await prefs.setInt('target_water_ml', waterTargetMl);
+    if (!mounted) return;
+    setState(() {
+      _targetSteps = stepsTarget;
+      _targetWaterMl = waterTargetMl;
+    });
+
+    final waterLiters = waterTargetMl > 0
+        ? (waterTargetMl / 1000).toStringAsFixed(1)
+        : '--';
+    await LocalNotifications.showNotification(
+      id: 2001,
+      title: 'Today targets set',
+      body: 'Steps: $stepsTarget, Water: ${waterLiters}L',
+    );
   }
 
   String _todayString() {
@@ -53,14 +89,14 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
         date: _todayString(),
       );
       final totals = summary['totals'] as Map? ?? {};
-      final steps = totals['steps'];
-      final water = totals['water_ml'];
+      final steps = _numFrom(totals['steps']);
+      final water = _numFrom(totals['water_ml']);
       final weekly = (summary['weekly_steps'] as List? ?? [])
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
       setState(() {
-        _todaySteps = (steps is num) ? steps.round() : 0;
-        _waterMl = (water is num) ? water.round() : 0;
+        _todaySteps = steps?.round() ?? 0;
+        _waterMl = water?.round() ?? 0;
         _weeklySteps = weekly;
         _isLoading = false;
       });
@@ -74,9 +110,7 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
           );
           final u = updated['totals'] as Map? ?? {};
           setState(() {
-            _todaySteps = ((u['steps'] ?? _todaySteps) is num)
-                ? (u['steps'] as num).round()
-                : _todaySteps;
+            _todaySteps = _numFrom(u['steps'])?.round() ?? _todaySteps;
           });
         }
       } catch (_) {}
@@ -86,6 +120,11 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  num? _numFrom(dynamic v) {
+    if (v is num) return v;
+    return num.tryParse(v?.toString() ?? '');
   }
 
   List latestArr = [
@@ -196,7 +235,7 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: MaterialButton(
-                                onPressed: () {},
+                                onPressed: _showTargetDialog,
                                 padding: EdgeInsets.zero,
                                 height: 30,
                                 shape: RoundedRectangleBorder(
@@ -222,9 +261,7 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
                         Expanded(
                           child: TodayTargetCell(
                             icon: "assets/icons/water_icon.png",
-                            value: _waterMl > 0
-                                ? '${(_waterMl / 1000).toStringAsFixed(1)}L'
-                                : '--',
+                            value: _formatWaterValue(),
                             title: "Water Intake",
                           ),
                         ),
@@ -232,7 +269,7 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
                         Expanded(
                           child: TodayTargetCell(
                             icon: "assets/icons/foot_icon.png",
-                            value: _isLoading ? '...' : '$_todaySteps',
+                            value: _formatStepsValue(),
                             title: "Foot Steps",
                           ),
                         ),
@@ -437,6 +474,80 @@ class _ActivityTrackerScreenState extends State<ActivityTrackerScreen> {
         ),
       ),
     );
+  }
+
+  String _formatStepsValue() {
+    if (_isLoading) return '...';
+    if (_targetSteps > 0) {
+      return '$_todaySteps / $_targetSteps';
+    }
+    return '$_todaySteps';
+  }
+
+  String _formatWaterValue() {
+    if (_isLoading) return '...';
+    final current = _waterMl > 0
+        ? (_waterMl / 1000).toStringAsFixed(1)
+        : '0.0';
+    if (_targetWaterMl > 0) {
+      final target = (_targetWaterMl / 1000).toStringAsFixed(1);
+      return '$current / ${target}L';
+    }
+    return '${current}L';
+  }
+
+  Future<void> _showTargetDialog() async {
+    final stepsController =
+        TextEditingController(text: _targetSteps > 0 ? '$_targetSteps' : '');
+    final waterController = TextEditingController(
+      text: _targetWaterMl > 0 ? '$_targetWaterMl' : '',
+    );
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Set Today Targets'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: stepsController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Steps target',
+                  hintText: 'e.g., 8000',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: waterController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Water target (ml)',
+                  hintText: 'e.g., 2000',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != true) return;
+    final steps = int.tryParse(stepsController.text.trim()) ?? 0;
+    final water = int.tryParse(waterController.text.trim()) ?? 0;
+    await _saveTargets(stepsTarget: steps, waterTargetMl: water);
   }
 
   Widget getTitles(double value, TitleMeta meta) {

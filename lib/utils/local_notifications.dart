@@ -68,4 +68,32 @@ class LocalNotifications {
           UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
+
+  static Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    await init();
+
+    const androidDetails = AndroidNotificationDetails(
+      'general',
+      'General',
+      channelDescription: 'General notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    await _plugin.show(
+      id,
+      title,
+      body,
+      const NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      ),
+    );
+  }
 }

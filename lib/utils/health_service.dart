@@ -12,6 +12,7 @@ class HealthService {
     try {
       final types = [HealthDataType.STEPS];
       final granted = await _health.requestAuthorization(types);
+      print('[HealthService] permission granted: $granted');
       if (!granted) return null;
 
       final now = DateTime.now();
@@ -21,6 +22,7 @@ class HealthService {
         now,
         types,
       );
+      print('[HealthService] data points: ${data.length}');
 
       int total = 0;
       for (final point in data) {
@@ -32,8 +34,10 @@ class HealthService {
           if (n != null) total += n.round();
         }
       }
+      print('[HealthService] total steps: $total');
       return total > 0 ? total : null;
     } catch (e) {
+      print('[HealthService] error: $e');
       return null;
     }
   }
